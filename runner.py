@@ -14,8 +14,10 @@ def load_engine():
     return module
 
 
-def execute(action, settings, password=""):
+def execute(action, settings, password="", selected_paths=None):
     engine = load_engine()
+    if action == "upload-selected":
+        selected_paths = engine.validate_selected_paths(selected_paths)
     source = Path(settings["source"]).resolve()
     disk = Path(settings["disk"]).resolve()
     db = Path(settings["db"]).resolve()
@@ -25,13 +27,14 @@ def execute(action, settings, password=""):
         engine.run_backup(source, disk, db, action == "preview", batch, progress)
     elif action == "import-baseline":
         engine.import_baseline(source, disk, db, batch, progress)
-    elif action in ("scan", "upload"):
+    elif action in ("scan", "upload", "upload-selected"):
         engine.scan_source(source, db, batch, progress, disk)
-        if action == "upload":
+        if action in ("upload", "upload-selected"):
             engine.upload_incremental(
                 source, db, settings["cloud_host"], settings["cloud_user"],
                 settings["cloud_path"], settings["ssh_port"], settings["ssh_key"],
                 password or ("" if settings["ssh_key"] else engine.CLOUD_PASSWORD), settings["bwlimit"],
+                selected_paths=selected_paths if action == "upload-selected" else None,
             )
     else:
         raise ValueError("不支持的任务")
@@ -40,7 +43,7 @@ def execute(action, settings, password=""):
 if __name__ == "__main__":
     try:
         payload = json.load(sys.stdin)
-        execute(payload["action"], payload["settings"], payload.get("password", ""))
+        execute(payload["action"], payload["settings"], payload.get("password", ""), payload.get("selected_paths"))
     except Exception as exc:
         print(f"任务失败：{exc}", flush=True)
         sys.exit(1)

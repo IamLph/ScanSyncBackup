@@ -708,9 +708,32 @@ def prepare_cloud(
         raise RuntimeError(f"无法创建云端目录，SSH退出码={result.returncode}")
 
 
-def create_upload_candidates(conn: sqlite3.Connection) -> tuple[int, int]:
+def validate_selected_paths(paths: object) -> list[str]:
+    if not isinstance(paths, list) or not paths:
+        raise RuntimeError("没有选择部分上传的文件，请先勾选待上传条目")
+    for path in paths:
+        if (not isinstance(path, str) or "\0" in path
+                or any(part in ("", ".", "..") for part in path.split("/"))):
+            raise RuntimeError("部分上传的文件路径必须是有效的相对路径")
+    return list(dict.fromkeys(paths))
+
+
+def create_upload_candidates(
+    conn: sqlite3.Connection, selected_paths: list[str] | None = None,
+) -> tuple[int, int]:
+    selection_filter = ""
+    if selected_paths is not None:
+        paths = validate_selected_paths(selected_paths)
+        conn.executescript(
+            "DROP TABLE IF EXISTS temp.selected_upload_paths;"
+            "CREATE TEMP TABLE selected_upload_paths(relative_path TEXT PRIMARY KEY);"
+        )
+        conn.executemany(
+            "INSERT INTO selected_upload_paths VALUES(?)", [(path,) for path in paths]
+        )
+        selection_filter = " AND relative_path IN (SELECT relative_path FROM selected_upload_paths)"
     conn.executescript(
-        """
+        f"""
         DROP TABLE IF EXISTS upload_candidates;
         CREATE TEMP TABLE upload_candidates AS
         SELECT relative_path, entry_type, size, mtime_ns, mode, uid, gid,
@@ -718,7 +741,7 @@ def create_upload_candidates(conn: sqlite3.Connection) -> tuple[int, int]:
         FROM source_entries
         WHERE source_exists=1
           AND status IN ('NEW', 'CHANGED', 'UPLOAD_FAILED')
-          AND entry_type IN ('file', 'directory', 'symlink');
+          AND entry_type IN ('file', 'directory', 'symlink'){selection_filter};
         CREATE UNIQUE INDEX upload_candidates_path
           ON upload_candidates(relative_path);
         """
@@ -831,8 +854,11 @@ def upload_incremental(
     key: str,
     password: str,
     bwlimit: int,
+    selected_paths: list[str] | None = None,
 ) -> None:
     validate_cloud(host, user, cloud_path, port, bwlimit)
+    if selected_paths is not None:
+        selected_paths = validate_selected_paths(selected_paths)
     rsync_path = shutil.which(RSYNC_COMMAND)
     ssh_path = shutil.which(SSH_COMMAND)
     if not rsync_path or not ssh_path:
@@ -849,7 +875,7 @@ def upload_incremental(
             (run_id, destination),
         )
         conn.commit()
-        requested_count, requested_bytes = create_upload_candidates(conn)
+        requested_count, requested_bytes = create_upload_candidates(conn, selected_paths)
         # 上传前保存本次文件版本，后续扫描和上传不能覆盖历史批次的清单。
         conn.execute(
             "INSERT INTO upload_items(run_id, relative_path, entry_type, size, "
@@ -872,7 +898,7 @@ def upload_incremental(
         conn.commit()
         if requested_count == 0:
             finish_run(conn, run_id, "SUCCESS", rsync_exit_code=0)
-            print("没有需要上传的增量文件")
+            print("选中的条目已无待上传增量，未传输文件" if selected_paths is not None else "没有需要上传的增量文件")
             return
         attempted_at = now_text()
         conn.execute(
@@ -889,6 +915,8 @@ def upload_incremental(
             f"待上传：{requested_count:,}个条目，普通文件{format_bytes(requested_bytes)}",
             flush=True,
         )
+        if selected_paths is not None:
+            print(f"部分上传：限定{len(selected_paths)}个勾选路径，不递归上传未勾选文件", flush=True)
         prepare_cloud(ssh_path, host, user, cloud_path, port, key, password)
         list_path = write_upload_list(conn, db_path.parent)
         ssh_shell = shlex.join(ssh_base(ssh_path, port, key, password))
@@ -1061,6 +1089,20 @@ def self_test() -> None:
         assert statuses["new.txt"] == "NEW"
         count, _ = create_upload_candidates(conn)
         assert count == 2
+
+        # 部分上传只取勾选且仍待上传的路径，空选择不能退回全部上传。
+        count, _ = create_upload_candidates(conn, ['new.txt', 'new.txt'])
+        assert count == 1
+        assert [row[0] for row in conn.execute('SELECT relative_path FROM upload_candidates')] == ['new.txt']
+        assert create_upload_candidates(conn, ['same.txt'])[0] == 0
+        for invalid in ([], ['../outside.txt'], ['/absolute.txt'], [''], [None]):
+            try:
+                validate_selected_paths(invalid)
+            except RuntimeError:
+                pass
+            else:
+                raise AssertionError('部分上传接受了空选择或非法路径')
+        assert create_upload_candidates(conn)[0] == 2
 
         # 旧上传记录也忽略扩展属性；上传后的版本确认仍检查基本属性。
         conn.execute("""

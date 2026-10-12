@@ -39,5 +39,29 @@ main{margin-left:218px;max-width:1590px;padding:36px 44px}.page-header{display:f
 .console-page #activity .console-header{flex-shrink:0}
 .console-page #activity .console pre{flex:1;min-height:0;max-height:none}
 .console-page footer{padding-top:18px}
-#operations .console-config{padding-top:10px;margin-bottom:18px}
 @media(max-width:960px){.console-body{display:flex;flex-direction:column}.console-body>.sidebar{flex-shrink:0}.console-page{flex:1;height:auto}}
+
+#operations{display:flex;flex-direction:column}
+#operations>.console-config,#operations>.workflow,#operations>.flow-note,#operations>.metrics{flex-shrink:0}
+.pending-section{display:flex;flex-direction:column;flex:1;min-height:230px;margin-top:18px}
+.pending-section>.section-heading{margin-bottom:10px;flex-shrink:0}
+.pending-section>.table-wrap{flex:1;min-height:90px}
+.pending-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px;flex-shrink:0}
+.pending-status-filters,.selection-tools{display:flex;align-items:center;gap:12px;font-size:12px;color:var(--muted)}
+.pending-status-filters label{display:flex;align-items:center;gap:4px;white-space:nowrap}
+.pending-status-filters input,.pending-table input[type="checkbox"]{min-height:0;width:15px;height:15px;accent-color:var(--accent)}
+.pending-table th:first-child{width:42px}.pending-table th:nth-child(2){width:40%}
+.pending-table th,.pending-table td{padding:10px 12px}.pending-table .file-path{min-width:110px}
+.pending-table thead{position:sticky;top:0;z-index:1}.pending-table tr.is-selected{background:var(--accent-light)}
+.pending-section>.pagination{flex-shrink:0}
+@media(max-width:680px){.pending-toolbar{align-items:flex-start;flex-direction:column}.selection-tools{width:100%;justify-content:space-between}.pending-section{min-height:360px}.pending-table th:nth-child(2),.pending-table td:nth-child(2),.pending-table th:nth-child(4),.pending-table td:nth-child(4){display:table-cell}.pending-table th:nth-child(3),.pending-table td:nth-child(3),.pending-table th:nth-child(5),.pending-table td:nth-child(5){display:none}.pending-table th:first-child{width:32px}.pending-table th,.pending-table td{padding:8px}.pending-section .pagination{flex-wrap:wrap}.pending-table .badge{white-space:normal}}
+
+.console-page{padding-top:24px;padding-bottom:24px}.console-page>.page-header{margin-bottom:20px}.console-page>.console-nav{margin-bottom:12px}
+
+.console-body.operations-scroll{height:auto;min-height:100dvh;overflow:visible}
+.operations-scroll .console-page{height:auto;min-height:100dvh;padding-top:36px;padding-bottom:36px}
+.operations-scroll .console-page>.page-header{margin-bottom:30px}
+.operations-scroll .console-page>.console-nav{margin-bottom:20px}
+.operations-scroll #operations{flex:none;overflow:visible}
+.operations-scroll .pending-section{flex:none;min-height:0;margin-top:28px}
+.operations-scroll .pending-section>.table-wrap{flex:none;height:640px;min-height:640px}

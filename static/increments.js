@@ -17,7 +17,7 @@ function drawTrend() {
   const known = trend.filter(point => point.size_known);
   if (!known.length) {
     svg.toggleAttribute('hidden', true); $('trend-empty').hidden = false;
-    $('trend-empty').textContent = trend.length ? '已有批次尚未记录可用的增量大小，完成一次上传后即可查看趋势。' : '暂无上传记录。点击首页的「开始上传」后，这里会记录每次进入上传阶段的增量。';
+    $('trend-empty').textContent = trend.length ? '已有批次尚未记录可用的增量大小，完成一次上传后即可查看趋势。' : '暂无上传记录。点击控制台的「全部上传」或「部分上传」后，这里会记录每次进入上传阶段的增量。';
     return;
   }
   svg.toggleAttribute('hidden', false); $('trend-empty').hidden = true;

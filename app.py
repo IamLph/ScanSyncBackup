@@ -32,7 +32,7 @@ STATUSES = {
     "CLOUD_UPLOADED": "云端已上传", "UPLOAD_FAILED": "上传待重试",
     "SOURCE_DELETED": "源端已删除", "ERROR": "不支持的文件",
 }
-ACTIONS = {"preview": "预览备份", "backup": "备份到硬盘", "import-baseline": "导入已有磁盘备份", "scan": "扫描变化", "upload": "上传增量"}
+ACTIONS = {"preview": "预览备份", "backup": "备份到硬盘", "import-baseline": "导入已有磁盘备份", "scan": "扫描变化", "upload": "上传增量", "upload-selected": "部分上传"}
 
 
 def now():
@@ -189,7 +189,7 @@ class Tasks:
         with self.lock:
             return dict(self.task) if self.task else None
 
-    def start(self, action, settings, password):
+    def start(self, action, settings, password, selected_paths=None):
         with self.lock:
             if self.active():
                 raise ValueError("已有任务正在运行，请等待完成或先停止")
@@ -205,6 +205,8 @@ class Tasks:
                 "status": "running", "started_at": now(), "finished_at": None,
                 "exit_code": None, "error": None, "settings": dict(settings),
             }
+            if selected_paths is not None:
+                task["selected_paths"] = list(selected_paths)
             self.task = task
             self.persist()
             log_path = self.directory / f"{identifier}.log"
@@ -217,7 +219,7 @@ class Tasks:
                         start_new_session=True, pass_fds=(operation_lock.fileno(),),
                     )
                     self.process = process
-                    payload = {"action": action, "settings": settings, "password": password}
+                    payload = {"action": action, "settings": settings, "password": password, "selected_paths": selected_paths}
                     process.stdin.write(json.dumps(payload).encode("utf-8"))
                     process.stdin.close()
                 threading.Thread(target=self.monitor, args=(process, task), daemon=True).start()
@@ -355,6 +357,10 @@ def create_app(state_dir=None):
     def database_error(exc):
         return jsonify(error=f"数据库暂时无法读取：{exc}"), 503
 
+    @app.errorhandler(413)
+    def request_too_large(exc):
+        return jsonify(error="请求内容过大，请减少一次勾选的文件数量"), 413
+
     @app.get("/")
     def index():
         session.setdefault("csrf", secrets.token_hex(32))
@@ -373,7 +379,7 @@ def create_app(state_dir=None):
         task = tasks.snapshot()
         for record in records:
             if record['status'] == 'RUNNING':
-                active = (task and task['action'] == 'upload' and task['status'] == 'running'
+                active = (task and task['action'] in ('upload', 'upload-selected') and task['status'] == 'running'
                           and task['settings']['db'] == settings['db']
                           and task['started_at'] <= record['started_at'])
                 if not active:
@@ -516,23 +522,29 @@ def create_app(state_dir=None):
     def files():
         page = max(1, int(request.args.get("page", 1)))
         limit = 30
-        status = request.args.get("status", "")
+        statuses = list(dict.fromkeys(status for status in request.args.getlist("status") if status))
+        pending_only = request.args.get("pending") == "1"
         search = request.args.get("q", "").strip()
-        if status and status not in STATUSES:
+        if any(status not in STATUSES for status in statuses):
             raise ValueError("未知的文件状态")
         connection = read_db(settings)
         if not connection:
             return jsonify(items=[], total=0, page=page, page_size=limit, origin="source")
         try:
-            source_count = connection.execute("SELECT COUNT(*) FROM source_entries").fetchone()[0]
+            source_count = 1 if pending_only else connection.execute("SELECT COUNT(*) FROM source_entries").fetchone()[0]
             table = "source_entries" if source_count else "baseline_entries"
             filters, arguments = [], []
+            if pending_only:
+                filters += ["source_exists=1", "status IN ('NEW','CHANGED','UPLOAD_FAILED')", "entry_type IN ('file','directory','symlink')"]
             if search:
                 filters.append("relative_path LIKE ? ESCAPE '\\'")
                 arguments.append("%" + search.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%")
-            if status:
-                filters.append("status=?" if source_count else "?='DISK_BACKED'")
-                arguments.append(status)
+            if statuses:
+                if source_count:
+                    filters.append(f"status IN ({','.join('?' for _ in statuses)})")
+                    arguments.extend(statuses)
+                elif 'DISK_BACKED' not in statuses:
+                    filters.append("0")
             where = " WHERE " + " AND ".join(filters) if filters else ""
             total = connection.execute(f"SELECT COUNT(*) FROM {table}{where}", arguments).fetchone()[0]
             page = min(page, max(1, (total + limit - 1) // limit))
@@ -559,17 +571,31 @@ def create_app(state_dir=None):
                 raise ValueError("请先在界面保存迁移配置，再手动开始任务")
             engine = load_engine()
             engine.validate_common(Path(settings["source"]), Path(settings["db"]))
-            if payload["action"] == "upload":
+            selected_paths = None
+            if payload["action"] == "upload-selected":
+                selected_paths = engine.validate_selected_paths(payload.get("selected_paths"))
+            elif payload.get("selected_paths") is not None:
+                raise ValueError("指定勾选文件时请使用部分上传，不能按全部上传执行")
+            if payload["action"] in ("upload", "upload-selected"):
                 require_cloud_credentials(password)
                 connection = read_db(settings)
                 try:
                     row = connection.execute("SELECT value FROM metadata WHERE key='baseline_recorded_at'").fetchone() if connection else None
+                    if row and selected_paths is not None:
+                        for path in selected_paths:
+                            eligible = connection.execute(
+                                "SELECT 1 FROM source_entries WHERE relative_path=? AND source_exists=1 "
+                                "AND status IN ('NEW','CHANGED','UPLOAD_FAILED') AND entry_type IN ('file','directory','symlink')",
+                                (path,),
+                            ).fetchone()
+                            if not eligible:
+                                raise ValueError("部分所选条目已不再待上传，请刷新后重新选择")
                 finally:
                     if connection:
                         connection.close()
                 if not row:
                     raise ValueError("请先点击开始扫描，对比已有磁盘备份并建立记录，再上传增量")
-            return jsonify(task=tasks.start(payload["action"], dict(settings), password)), 202
+            return jsonify(task=tasks.start(payload["action"], dict(settings), password, selected_paths)), 202
 
     @app.post("/api/tasks/cancel")
     def cancel_task():

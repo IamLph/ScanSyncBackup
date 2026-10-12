@@ -8,7 +8,7 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   <script src="{{ url_for('static', filename='app.js') }}" defer></script>
 </head>
-<body class="console-body">
+<body class="console-body operations-scroll">
   {% set active_page = 'console' %}
   {% include '_sidebar.html' %}
 
@@ -34,7 +34,7 @@
     <section class="workflow" aria-label="迁移操作步骤">
       <article class="step"><div class="step-head"><span class="step-number">1</span><span id="baseline-badge" class="badge neutral">尚无基准</span></div><h2>备份到硬盘（可跳过）</h2><p>尚未备份时复制源文件；已有磁盘备份可直接点击「开始扫描」。</p><div class="step-actions"><button class="button primary task-action" data-action="backup" disabled>开始备份</button><button class="button text-button task-action" data-action="preview" disabled>预览备份差异</button></div></article>
       <article class="step"><div class="step-head"><span class="step-number">2</span><span class="step-caption" id="scan-caption">首次对比磁盘与服务器</span></div><h2>扫描文件变化</h2><p>首次扫描自动建账并对比两个目录；之后使用数据库识别后续新增和变化。</p><div class="step-actions"><button class="button task-action" data-action="scan" disabled>开始扫描</button></div></article>
-      <article class="step"><div class="step-head"><span class="step-number">3</span><span class="step-caption" id="pending-caption">等待扫描</span></div><h2>上传后续增量</h2><p>先重新扫描，再上传需要补充的文件，并保存本次增量清单。</p><div class="step-actions"><button class="button task-action needs-baseline" data-action="upload" disabled>开始上传</button><a class="button text-button" href="/increments">查看同步增量记录</a></div></article>
+      <article class="step"><div class="step-head"><span class="step-number">3</span><span class="step-caption" id="pending-caption">等待扫描</span></div><h2>上传后续增量</h2><p>先重新扫描，再上传需要补充的文件，并保存本次增量清单。</p><div class="step-actions"><button class="button task-action needs-baseline" data-action="upload" disabled>全部上传</button><button class="button primary task-action needs-baseline" data-action="upload-selected" disabled>部分上传</button><a class="button text-button" href="/increments">查看同步增量记录</a></div></article>
     </section>
     <p class="flow-note">硬盘中的全量文件需要另外搬到云端；这里上传的是后续增量。</p>
 
@@ -45,6 +45,12 @@
       <div><span>本次扫描文件总量</span><strong id="metric-bytes">0 B</strong><small>服务器当前普通文件大小</small></div>
     </section>
 
+    <section class="pending-section" aria-labelledby="pending-title">
+      <div class="section-heading"><div><h2 id="pending-title">待上传文件 <span id="pending-total" class="count">0</span></h2><p>只显示新增、变化和重试条目；跨页保留勾选，目录只上传自身。</p></div><div class="file-tools"><label class="sr-only" for="pending-search">搜索待上传文件路径</label><input id="pending-search" type="search" placeholder="搜索待上传文件…"></div></div>
+      <div class="pending-toolbar"><div class="pending-status-filters" role="group" aria-label="筛选待上传状态" title="状态可多选；不勾选状态时显示全部待上传条目"><span>状态筛选</span><label><input type="checkbox" value="NEW"> 新增</label><label><input type="checkbox" value="CHANGED"> 变化</label><label><input type="checkbox" value="UPLOAD_FAILED"> 重试</label></div><div class="selection-tools"><span id="selection-caption" role="status">没有选择部分上传的文件</span><button class="button small" id="clear-selection" disabled>清空选择</button><button class="button primary small task-action needs-baseline" data-action="upload-selected" disabled>上传勾选项</button></div></div>
+      <div class="table-wrap"><table class="pending-table"><thead><tr><th><input id="select-pending-page" type="checkbox" aria-label="勾选本页待上传条目" disabled></th><th>文件路径</th><th>类型</th><th>大小</th><th>最后修改</th><th>迁移状态</th></tr></thead><tbody id="pending-body"><tr><td colspan="6" class="empty">正在读取待上传文件…</td></tr></tbody></table></div>
+      <div class="pagination"><span id="pending-page-caption">每页 30 条；勾选本页只选择当前页。</span><div><button class="button small" id="pending-previous" disabled>上一页</button><span id="pending-page-number">1 / 1</span><button class="button small" id="pending-next" disabled>下一页</button></div></div>
+    </section>
     </div>
 
     <section class="section console-view" id="files" role="tabpanel" aria-labelledby="view-tab-files" tabindex="0" hidden>
