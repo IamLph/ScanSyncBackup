@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="csrf-token" content="{{ csrf }}">
+  <title>控制台 · 迁移工作台</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <script src="{{ url_for('static', filename='app.js') }}" defer></script>
+</head>
+<body class="console-body">
+  {% set active_page = 'console' %}
+  {% include '_sidebar.html' %}
+
+  <main class="console-page">
+    <header class="page-header">
+      <div><div class="eyebrow">文件迁移 / 控制台</div><h1>控制台</h1><p>查看迁移状态，手动执行备份、扫描与增量同步。</p></div>
+      <div class="header-actions"><span class="connection" id="connection-status">正在连接</span><button class="button" id="refresh">刷新数据</button></div>
+    </header>
+    <div id="page-error" class="notice error" role="alert" hidden></div>
+    <div id="page-message" class="notice" role="status" hidden></div>
+
+    <nav class="console-nav" role="tablist" aria-label="控制台视图">
+      <button type="button" id="view-tab-operations" role="tab" aria-controls="operations" aria-selected="true" data-view="operations">操作台</button>
+      <button type="button" id="view-tab-files" role="tab" aria-controls="files" aria-selected="false" tabindex="-1" data-view="files">文件清单</button>
+      <button type="button" id="view-tab-activity" role="tab" aria-controls="activity" aria-selected="false" tabindex="-1" data-view="activity">运行日志</button>
+    </nav>
+    <div class="console-view" id="operations" role="tabpanel" aria-labelledby="view-tab-operations" tabindex="0">
+    <section class="console-config" aria-label="当前迁移配置">
+      <div class="config-summary"><div><span>服务器源目录</span><code id="source-summary">读取中…</code></div><div><span>磁盘备份目录</span><code id="disk-summary">读取中…</code></div><div><span>云端上传位置</span><code id="cloud-summary">读取中…</code></div></div>
+      <div class="config-summary-footer"><span id="config-state" role="status">正在读取配置…</span><a class="button small" href="/settings">前往全局配置</a></div>
+    </section>
+
+    <section class="workflow" aria-label="迁移操作步骤">
+      <article class="step"><div class="step-head"><span class="step-number">1</span><span id="baseline-badge" class="badge neutral">尚无基准</span></div><h2>备份到硬盘（可跳过）</h2><p>尚未备份时复制源文件；已有磁盘备份可直接点击「开始扫描」。</p><div class="step-actions"><button class="button primary task-action" data-action="backup" disabled>开始备份</button><button class="button text-button task-action" data-action="preview" disabled>预览备份差异</button></div></article>
+      <article class="step"><div class="step-head"><span class="step-number">2</span><span class="step-caption" id="scan-caption">首次对比磁盘与服务器</span></div><h2>扫描文件变化</h2><p>首次扫描自动建账并对比两个目录；之后使用数据库识别后续新增和变化。</p><div class="step-actions"><button class="button task-action" data-action="scan" disabled>开始扫描</button></div></article>
+      <article class="step"><div class="step-head"><span class="step-number">3</span><span class="step-caption" id="pending-caption">等待扫描</span></div><h2>上传后续增量</h2><p>先重新扫描，再上传需要补充的文件，并保存本次增量清单。</p><div class="step-actions"><button class="button task-action needs-baseline" data-action="upload" disabled>开始上传</button><a class="button text-button" href="/increments">查看同步增量记录</a></div></article>
+    </section>
+    <p class="flow-note">硬盘中的全量文件需要另外搬到云端；这里上传的是后续增量。</p>
+
+    <section class="metrics" aria-label="文件状态统计">
+      <div><span>硬盘基准条目</span><strong id="metric-baseline">0</strong><small id="baseline-time">还没有备份基准</small></div>
+      <div><span>等待上传</span><strong id="metric-pending">0</strong><small>新增、变化和需要重试</small></div>
+      <div><span>当前版本已上传</span><strong id="metric-uploaded">0</strong><small>依据账本中的成功记录</small></div>
+      <div><span>本次扫描文件总量</span><strong id="metric-bytes">0 B</strong><small>服务器当前普通文件大小</small></div>
+    </section>
+
+    </div>
+
+    <section class="section console-view" id="files" role="tabpanel" aria-labelledby="view-tab-files" tabindex="0" hidden>
+      <div class="section-heading"><div><h2>文件清单 <span id="file-total" class="count">0</span></h2><p id="file-origin">查看每个文件当前的迁移状态。</p></div><div class="file-tools"><label class="sr-only" for="file-search">搜索文件路径</label><input id="file-search" type="search" placeholder="搜索文件路径…"><label class="sr-only" for="status-filter">筛选文件状态</label><select id="status-filter"><option value="">全部状态</option>{% for key, label in statuses.items() %}<option value="{{ key }}">{{ label }}</option>{% endfor %}</select></div></div>
+      <div class="table-wrap"><table><thead><tr><th>文件路径</th><th>类型</th><th>大小</th><th>最后修改</th><th>迁移状态</th></tr></thead><tbody id="file-body"><tr><td colspan="5" class="empty">正在读取文件清单…</td></tr></tbody></table></div>
+      <div class="pagination"><span id="page-caption">每页 30 条</span><div><button class="button small" id="previous-page">上一页</button><span id="page-number">1 / 1</span><button class="button small" id="next-page">下一页</button></div></div>
+    </section>
+
+    <section class="section console-view" id="activity" role="tabpanel" aria-labelledby="view-tab-activity" tabindex="0" hidden>
+      <div class="section-heading"><div><h2>运行日志 <span id="task-badge" class="badge neutral">暂无任务</span></h2><p id="task-description">开始一个任务后，这里会显示执行进度。</p></div><div class="log-tools"><label><input id="follow-logs" type="checkbox" checked> 跟随最新日志</label><button class="button danger" id="cancel-task" disabled>停止任务</button></div></div>
+      <div class="console"><div class="console-header"><span id="log-title">等待任务</span><span id="task-time">任务日志会保存在本机</span></div><pre id="log-output" aria-label="任务运行日志">等待你点击操作按钮。先在全局配置中保存路径和云端连接，再选择备份、扫描或上传。</pre></div>
+    </section>
+    <footer>备份基准与增量记录自动保存在 data 目录。<span>请保留这个目录，重建容器不会清空已挂载的数据。</span></footer>
+  </main>
+
+  <dialog id="action-dialog" aria-labelledby="action-title">
+    <div class="dialog-heading"><h2 id="action-title">开始任务</h2><button class="icon-button close-dialog" type="button" aria-label="关闭任务确认">×</button></div>
+    <p id="action-description"></p><div class="action-paths" id="action-paths"></div>
+    <div class="dialog-footer"><button class="button close-dialog" type="button">取消</button><button class="button primary" id="confirm-action">开始</button></div>
+  </dialog>
+</body>
+</html>

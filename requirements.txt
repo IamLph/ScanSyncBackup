@@ -1,0 +1,7 @@
+# Web 页面和 API；Werkzeug、Jinja2 等由 Flask 自动安装。
+Flask>=3.0,<4
+
+# Linux x86_64 CPython 的 SQLite 备用驱动，兼容 CentOS 自编译 Python 缺少 _sqlite3。
+pysqlite3-binary>=0.5.4,<0.6; sys_platform == "linux" and platform_machine == "x86_64" and platform_python_implementation == "CPython"
+
+# 其余 Python 模块属于标准库。rsync、SSH、sshpass、NFS 由系统安装。

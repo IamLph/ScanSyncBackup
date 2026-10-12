@@ -1,0 +1,10 @@
+<aside class="sidebar">
+  <a class="brand" href="/" aria-label="迁移工作台控制台"><span class="brand-mark">M</span><span>迁移工作台<small>文件备份与增量同步</small></span></a>
+  <div class="sidebar-label">工作空间</div>
+  <nav aria-label="页面导航">
+    {% for key, label, href, number in [('console', '控制台', '/', '01'), ('settings', '全局配置', '/settings', '02'), ('increments', '同步增量记录', '/increments', '03')] %}
+    <a class="nav-item{% if active_page == key %} selected{% endif %}" href="{{ href }}"{% if active_page == key %} aria-current="page"{% endif %}><span>{{ label }}</span><span aria-hidden="true">{{ number }}</span></a>
+    {% endfor %}
+  </nav>
+  <div class="sidebar-bottom"><span class="service-dot"></span> 任务手动开始<br><small>备份与同步操作都有记录</small></div>
+</aside>

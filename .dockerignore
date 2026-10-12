@@ -1,0 +1,12 @@
+# 只将 Dockerfile 构建需要的文件发送到构建上下文
+**
+!Dockerfile
+!requirements.txt
+!app.py
+!config.py
+!runner.py
+!scan_sync_backup.py
+!templates/
+!templates/**
+!static/
+!static/**

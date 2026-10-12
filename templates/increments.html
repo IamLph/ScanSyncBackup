@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>同步增量记录 · 迁移工作台</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <script src="{{ url_for('static', filename='increments.js') }}" defer></script>
+</head>
+<body>
+  {% set active_page = 'increments' %}
+  {% include '_sidebar.html' %}
+  <main>
+    <header class="page-header">
+      <div><div class="eyebrow">文件迁移 / 上传历史</div><h1>同步增量记录</h1><p>按上传批次查看新增和变化的文件，以及每次增量的大小。</p></div>
+      <div class="header-actions"><span class="connection" id="history-total">正在读取</span><button class="button" id="history-refresh">刷新记录</button></div>
+    </header>
+    <div class="notice error" id="history-error" role="alert" hidden></div>
+    <section class="trend-section" aria-labelledby="trend-title">
+      <div class="section-heading"><div><h2 id="trend-title">每次上传的增量大小趋势</h2><p>统计本次选中的普通文件完整大小；已确认上传的大小可在批次详情中查看。</p></div><span class="badge" id="trend-unit">文件大小</span></div>
+      <div class="trend-chart" id="trend-chart">
+        <svg id="trend-svg" role="img" aria-label="每次上传的增量文件总大小折线图" hidden></svg>
+        <div class="empty" id="trend-empty">暂无上传记录。点击控制台的「开始上传」后，这里会记录每次进入上传阶段的增量。</div>
+      </div>
+      <div class="trend-caption"><span id="trend-detail" role="status">横轴：第几次上传 · 纵轴：该次增量文件大小</span><span>点击折线上的点可查看该次文件清单</span></div>
+    </section>
+
+    <section class="history-layout" aria-label="上传批次与文件详情">
+      <aside class="batch-directory">
+        <div class="section-heading"><h2>上传批次</h2><span class="count" id="batch-count">0</span></div>
+        <div id="batch-list" class="batch-list"><div class="empty">正在读取批次…</div></div>
+        <div class="pagination batch-pagination"><button class="button small" id="batch-previous" disabled>上一页</button><span id="batch-page">1 / 1</span><button class="button small" id="batch-next" disabled>下一页</button></div>
+      </aside>
+
+      <section class="batch-detail" id="batch-detail" aria-labelledby="batch-title">
+        <div class="section-heading"><div><h2 id="batch-title">选择一个上传批次</h2><p id="batch-time">左侧按第 1 次、第 2 次、第 N 次上传保存记录。</p></div><span class="badge neutral" id="batch-status">暂无批次</span></div>
+        <p class="batch-destination" id="batch-destination" hidden></p>
+        <div class="batch-metrics" id="batch-metrics" hidden>
+          <div><span>当次增量文件</span><strong id="batch-files">0</strong><small id="batch-types">新增 0 · 变化 0 · 重试 0</small></div>
+          <div><span>增量文件总大小</span><strong id="batch-bytes">0 B</strong><small>所选普通文件的完整大小</small></div>
+          <div><span>已确认上传大小</span><strong id="batch-uploaded">0 B</strong><small id="batch-results">已确认 0 个文件</small></div>
+        </div>
+        <div class="notice" id="batch-notice" role="status" hidden></div>
+        <div class="file-tools history-file-tools">
+          <label class="sr-only" for="increment-search">搜索本批次文件</label><input id="increment-search" type="search" placeholder="搜索本批次文件路径…" disabled>
+          <label class="sr-only" for="increment-origin">筛选增量类型</label><select id="increment-origin" disabled><option value="">全部增量</option><option value="NEW">新增文件</option><option value="CHANGED">发生变化</option><option value="UPLOAD_FAILED">失败重试</option></select>
+        </div>
+        <div class="table-wrap"><table class="increment-table"><thead><tr><th>文件路径</th><th>增量类型</th><th>当次大小</th><th>当次修改时间</th><th>上传结果</th></tr></thead><tbody id="increment-body"><tr><td colspan="5" class="empty">选择批次后查看文件清单。</td></tr></tbody></table></div>
+        <div class="pagination"><span id="increment-caption">每页 30 条</span><div><button class="button small" id="increment-previous" disabled>上一页</button><span id="increment-page">1 / 1</span><button class="button small" id="increment-next" disabled>下一页</button></div></div>
+      </section>
+    </section>
+    <footer>上传历史保存在 data 目录。<span>文件明细从本版本开始保存，旧上传记录只显示已有汇总。</span></footer>
+  </main>
+</body>
+</html>

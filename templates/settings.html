@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="csrf-token" content="{{ csrf }}">
+  <title>全局配置 · 迁移工作台</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <script src="{{ url_for('static', filename='app.js') }}" defer></script>
+</head>
+<body>
+  {% set active_page = 'settings' %}
+  {% include '_sidebar.html' %}
+  <main>
+    <header class="page-header">
+      <div><div class="eyebrow">文件迁移 / 全局配置</div><h1>全局配置</h1><p>设置源目录、磁盘备份目录及云端连接，保存后到控制台开始任务。</p></div>
+      <div class="header-actions"><span class="connection" id="connection-status">正在连接</span><a class="button" href="/">返回控制台</a></div>
+    </header>
+    <div id="page-error" class="notice error" role="alert" hidden></div>
+    <div id="page-message" class="notice" role="status" hidden></div>
+    <section class="settings-panel" id="settings" aria-labelledby="settings-title">
+      <form id="settings-form">
+        <div class="section-heading"><div><h2 id="settings-title">迁移配置</h2><p>确认目录，填写云端连接和上传位置。</p></div><span class="badge neutral">任务手动开始</span></div>
+        <div class="form-grid paths-grid">
+          <label>服务器源目录<input name="source" required placeholder="/files"><small id="source-hint"></small></label>
+          <label>磁盘备份目录<input name="disk" required placeholder="/mnt/files"><small id="disk-hint"></small></label>
+          <label>云端上传目录<input name="cloud_path" required placeholder="/data/files"></label>
+        </div>
+        <details class="connection-settings" open>
+          <summary>云端连接</summary>
+          <div class="form-grid">
+            <label>云服务器 IP<input name="cloud_host" required placeholder="10.90.0.4"></label>
+            <label>登录用户<input name="cloud_user" required placeholder="root"></label>
+            <label>SSH 端口<input name="ssh_port" type="number" min="1" max="65535" required></label>
+            <label>云端密码<input id="cloud-password" type="password" autocomplete="new-password" placeholder="输入 SSH 登录密码"><small id="password-hint">保存后在本次服务会话内有效；服务重启后需重新输入，不写入文件。</small></label>
+          </div>
+        </details>
+        <div id="settings-error" class="notice error" role="alert" hidden></div>
+        <div class="settings-footer"><span id="config-state" role="status">正在读取配置…</span><div class="step-actions"><button class="button" id="test-cloud" type="button" disabled>测试连接</button><button class="button primary" id="save-settings" type="submit" disabled>保存配置</button></div></div>
+      </form>
+    </section>
+    <footer>配置保存在 data 目录。<span>保存配置和测试连接不会启动备份、扫描或上传。</span></footer>
+  </main>
+</body>
+</html>

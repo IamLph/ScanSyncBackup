@@ -1,0 +1,46 @@
+# 运行配置、账本、任务日志和 SSH 文件
+/data/
+/ssh/
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
+*.log
+*.lock
+
+# 本地环境和凭据
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+id_rsa
+id_ed25519
+id_ecdsa
+id_dsa
+known_hosts
+
+# Python 虚拟环境和缓存
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# 导出的镜像包、压缩包和编辑器文件
+*.tar
+*.tar.gz
+*.tgz
+*.zip
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
