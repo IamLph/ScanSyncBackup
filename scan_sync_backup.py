@@ -18,6 +18,9 @@ from typing import Iterator
 
 try:
     import sqlite3
+    if sqlite3.sqlite_version_info < (3, 22, 0):
+        # 旧版SQLite缺少完善的WAL只读支持，CentOS使用已声明的备用驱动。
+        import pysqlite3 as sqlite3
 except ModuleNotFoundError:
     # 部分自行编译的CentOS Python缺少内置_sqlite3。
     import pysqlite3 as sqlite3
@@ -258,8 +261,8 @@ def open_database(db_path: Path) -> sqlite3.Connection:
     existed = db_path.exists()
     conn = sqlite3.connect(db_path, timeout=120)
     conn.row_factory = sqlite3.Row
-    mode = conn.execute("PRAGMA journal_mode=DELETE").fetchone()[0]
-    if str(mode).lower() != "delete":
+    mode = conn.execute("PRAGMA journal_mode=WAL").fetchone()[0]
+    if str(mode).lower() != "wal":
         conn.close()
         raise RuntimeError(f"无法设置SQLite日志模式：{mode}")
     conn.execute("PRAGMA synchronous=FULL")
@@ -996,6 +999,16 @@ def self_test() -> None:
         os.symlink("same.txt", source / "same.link")
         shutil.copytree(source, disk, dirs_exist_ok=True, symlinks=True)
 
+        # 旧DELETE账本升级WAL时保留已有记录。
+        legacy = sqlite3.connect(db_path)
+        legacy.executescript(SCHEMA)
+        legacy.execute(
+            "INSERT INTO metadata(key, value) VALUES('self_test_legacy', 'retained')"
+        )
+        legacy.commit()
+        assert legacy.execute("PRAGMA journal_mode").fetchone()[0] == "delete"
+        legacy.close()
+
         # 尚无数据库记录时，一次扫描自动比较已有磁盘与服务器。
         scan_source(source.resolve(), db_path.resolve(), 2, 0, disk.resolve())
 
@@ -1014,6 +1027,25 @@ def self_test() -> None:
             conn.execute("SELECT relative_path, status FROM source_entries")
         )
         assert set(statuses.values()) == {"DISK_BACKED"}
+
+        # 模拟大量未提交写入触发缓存写盘，页面仍可读上次提交的清单。
+        assert conn.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
+        assert metadata_value(conn, "self_test_legacy") == "retained"
+        conn.execute("PRAGMA cache_size=10")
+        conn.execute("BEGIN IMMEDIATE")
+        conn.executemany(
+            "INSERT INTO metadata(key, value) VALUES(?, ?)",
+            [(f"self_test_pending_{i}", "x" * 4096) for i in range(128)],
+        )
+        reader = sqlite3.connect(db_path.resolve().as_uri() + "?mode=ro", uri=True, timeout=0.3)
+        try:
+            assert reader.execute("SELECT COUNT(*) FROM source_entries").fetchone()[0] == len(statuses)
+            assert reader.execute(
+                "SELECT COUNT(*) FROM metadata WHERE key LIKE 'self_test_pending_%'"
+            ).fetchone()[0] == 0
+        finally:
+            reader.close()
+            conn.rollback()
         conn.close()
 
         time.sleep(0.01)

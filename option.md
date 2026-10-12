@@ -88,6 +88,10 @@ exit                                  # 退出容器，回到部署服务器
 
 `data` 还保存页面配置和任务日志；更新部署时保留整个目录。数据库在首次实际备份或扫描后创建。`data` 和 `ssh` 都位于项目目录下，不依赖项目安装位置。
 
+账本使用 WAL 模式，扫描写入时页面可以读取上次已提交的记录，扫描提交后再更新统计。旧账本在新版工作台启动或脚本首次打开时自动切换，保留已有基准和上传历史，无需重建；没有账本时仍由首次任务创建。
+
+`data` 应放在源服务器本地磁盘。SQLite 自动管理 `backup_state.db-wal`、`backup_state.db-shm`，它们随整个 `data` 目录挂载；运行中不要删除，也不要只复制 `.db` 作为完整备份。备份账本使用 SQLite 的 `backup()`，或停止工作台及其他账本进程后再复制。备份文件目录 `/mnt/files` 仍可使用 NFS。
+
 ### 使用 venv 直接启动（不使用 Docker）
 
 需要 Python 3.9+，先安装第 2 节的系统依赖。在项目根目录创建并激活虚拟环境，再安装依赖、启动服务：
@@ -107,7 +111,7 @@ Ubuntu / Debian 如果创建虚拟环境时提示缺少 `ensurepip`，先安装 
 apt-get install -y python3-venv
 ```
 
-`requirements.txt` 包含 Flask 和 Linux x86_64 CPython 的 SQLite 备用驱动。Flask 所需的 Werkzeug、Jinja2 等会自动安装；`json`、`os` 等标准库不用额外安装。Dockerfile 已安装 rsync、SSH、sshpass 和 CA 证书，NFS 挂载在宿主机完成。
+`requirements.txt` 包含 Flask 和 Linux x86_64 CPython 的 SQLite 备用驱动。内置 SQLite 缺失或版本低于 3.22 时自动使用备用驱动，兼容旧 CentOS 的 WAL 只读访问。Flask 所需的 Werkzeug、Jinja2 等会自动安装；`json`、`os` 等标准库不用额外安装。Dockerfile 已安装 rsync、SSH、sshpass 和 CA 证书，NFS 挂载在宿主机完成。
 
 ## 2. 不使用 Flask：独立运行脚本
 
@@ -124,7 +128,7 @@ python3 -c "import sqlite3; print(sqlite3.sqlite_version)"
 python3 scan_sync_backup.py --help
 ```
 
-Linux x86_64 CPython 如果提示缺少 `_sqlite3`，安装备用驱动后重新运行：
+Linux x86_64 CPython 如果缺少 `_sqlite3` 或内置 SQLite 版本低于 3.22，安装备用驱动后重新运行：
 
 ```bash
 python3 -m pip install 'pysqlite3-binary>=0.5.4,<0.6'

@@ -17,6 +17,8 @@ from pathlib import Path
 
 try:
     import sqlite3
+    if sqlite3.sqlite_version_info < (3, 22, 0):
+        import pysqlite3 as sqlite3
 except ModuleNotFoundError:
     import pysqlite3 as sqlite3
 
@@ -309,6 +311,11 @@ def create_app(state_dir=None):
         settings = validate_settings(saved, directory)
         if repaired:
             write_settings(settings_path, settings)
+    # 在接收页面读取请求前升级已有账本；无账本时仍等首次任务创建。
+    database_path = Path(settings['db'])
+    if database_path.is_file():
+        connection = load_engine().open_database(database_path)
+        connection.close()
     tasks = Tasks(directory / "tasks")
     app.extensions["migration_tasks"] = tasks
     app.extensions["migration_settings"] = settings
