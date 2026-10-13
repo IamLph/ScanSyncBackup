@@ -84,7 +84,7 @@ python3 scan_sync_backup.py backup --source /files/file_server --disk /mnt/files
 源服务器的 /files/file_server/ → 源服务器的 /mnt/files/ → 硬盘服务器的 /data/file_server/
 ```
 
-脚本使用 rsync，复制目录里面的内容，并尽量保留权限、属主、硬链接、ACL 和扩展属性。已经相同的文件通常跳过，有差异的文件会更新。目标里额外存在的文件不会被删除。
+脚本使用 rsync，复制目录里面的内容，并尽量保留权限、属主、时间、硬链接和 ACL，不复制扩展属性，避免目标端不支持 SELinux 标签时报错。已经相同的文件通常跳过，有差异的文件会更新。目标里额外存在的文件不会被删除。
 
 这里的“全量备份”是让硬盘拥有源目录的文件，重复运行并不一定重新传输每个文件，也不会自动给你建立一份带日期的独立副本。
 
@@ -155,10 +155,10 @@ exit
 回到源服务器，先预览，再复制硬盘里的全量文件：
 
 ```bash
-rsync -aHAXx --numeric-ids --dry-run --itemize-changes \
+rsync -aHAx --numeric-ids --dry-run --itemize-changes \
   -e 'ssh -p 22' /mnt/files/ root@10.90.0.4:/files/file_server/
 
-rsync -aHAXx --numeric-ids --info=progress2 --partial-dir=.rsync-partial \
+rsync -aHAx --numeric-ids --info=progress2 --partial-dir=.rsync-partial \
   -e 'ssh -p 22' /mnt/files/ root@10.90.0.4:/files/file_server/
 ```
 
@@ -186,7 +186,7 @@ rsync -aHAXx --numeric-ids --info=progress2 --partial-dir=.rsync-partial \
 - 文件大小和修改时间，修改时间允许 1 秒以内的差异。
 - 权限、属主、属组。
 
-扩展属性不参与差异判断，包括 SELinux 标签、NFSv4 ACL 等，避免本地文件与 NFS 呈现方式不同导致误判。仅这些属性变化不会触发上传；rsync 实际传输时仍尽量保留 ACL 和扩展属性。
+扩展属性不参与差异判断，也不通过 rsync 的 `-X` 复制。仅 SELinux 标签等扩展属性变化不会触发上传；rsync 仍通过 `-A` 尽量保留 ACL。
 
 符号链接还比较它指向哪里；目录比较类型和权限等属性，目录修改时间本身不用于判断变化。
 
@@ -337,7 +337,7 @@ exit  # 从容器回到源服务器
 | SSH 退出码 6 | 进入容器手动 SSH，输入 `yes` 确认指纹 |
 | `Permission denied` | 检查云端用户、密码和端口，在页面重新测试连接 |
 | 无法创建云端目录 | 先看 SSH 是否成功，再看账户是否能写 `/files/file_server` |
-| `Operation not supported` | 检查 NFS 或目标文件系统是否支持 ACL、扩展属性 |
+| `Operation not supported` | 当前版本不复制扩展属性；若日志仍提到 `security.selinux`，检查实际命令或部署版本是否仍带 `-X`；ACL 错误需检查目标是否支持 ACL |
 | 上传期间源文件变化 | 等文件稳定后再次上传，脚本会重新扫描 |
 | 任务中断或部分失败 | 查日志和当次上传结果，修复原因后再次上传；保留账本 |
 

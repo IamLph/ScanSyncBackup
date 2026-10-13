@@ -356,7 +356,7 @@ def print_command(command: list[str]) -> None:
 def backup_rsync_command(source: Path, disk_path: Path, dry_run: bool) -> list[str]:
     command = [
         RSYNC_COMMAND,
-        "-aHAXx",
+        "-aHAx",
         "--numeric-ids",
     ]
     if dry_run:
@@ -922,7 +922,7 @@ def upload_incremental(
         ssh_shell = shlex.join(ssh_base(ssh_path, port, key, password))
         command = [
             rsync_path,
-            "-aHAX",
+            "-aHA",
             "--numeric-ids",
             "--dirs",
             "--relative",
