@@ -1,5 +1,6 @@
 services:
   migration:
+    container_name: ssb
     build:
       context: .
       dockerfile: Dockerfile
